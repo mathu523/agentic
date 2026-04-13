@@ -1,23 +1,21 @@
-from langchain.chat_models import ChatOpenAI
 import os
 import json
-
-# ✅ Get API key from Streamlit Secrets
-api_key = os.getenv("GROQ_API_KEY")
-
-if not api_key:
-    raise ValueError("GROQ_API_KEY is missing. Add it in Streamlit Secrets.")
-
-# ✅ Initialize LLM (Groq)
-llm = ChatOpenAI(
-    api_key=api_key,
-    base_url="https://api.groq.com/openai/v1",
-    model="llama-3.3-70b-versatile",
-    temperature=0
-)
+import requests
 
 # ✅ Planner Agent
 def planner_agent(task: str):
+    api_key = os.getenv("GROQ_API_KEY")
+
+    if not api_key:
+        return {"error": "GROQ_API_KEY is missing"}
+
+    url = "https://api.groq.com/openai/v1/chat/completions"
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+
     prompt = f"""
     You are a software planning assistant.
 
@@ -35,24 +33,28 @@ def planner_agent(task: str):
     {task}
     """
 
+    data = {
+        "model": "llama-3.3-70b-versatile",
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0
+    }
+
     try:
-        response = llm.invoke(prompt).content
+        response = requests.post(url, headers=headers, json=data)
+        result = response.json()
+
+        content = result["choices"][0]["message"]["content"]
+
+        # Clean markdown if present
+        cleaned = content.replace("```json", "").replace("```", "").strip()
+
+        return json.loads(cleaned)
+
     except Exception as e:
-        return {"error": f"LLM failed: {str(e)}"}
-
-    # Clean markdown if model still adds it
-    cleaned = response.replace("```json", "").replace("```", "").strip()
-
-    # Convert to JSON
-    try:
-        data = json.loads(cleaned)
-    except Exception:
         return {
-            "error": "Invalid JSON output",
-            "raw_response": response
+            "error": str(e),
+            "raw_response": response.text if 'response' in locals() else None
         }
-
-    return data
 
 
 # ✅ Local test
