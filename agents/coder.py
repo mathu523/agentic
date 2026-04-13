@@ -1,89 +1,72 @@
-from langchain_openai import ChatOpenAI
-from dotenv import load_dotenv
 import os
 import json
-
-
-# 🔐 Load env
-load_dotenv()
-
-
-api_key = os.getenv("GROQ_API_KEY")
-
-
-if not api_key:
-    raise ValueError("❌ GROQ_API_KEY not found")
-
-
-# 🤖 LLM Setup
-llm = ChatOpenAI(
-    base_url="https://api.groq.com/openai/v1",
-    api_key=api_key,
-    model="llama-3.3-70b-versatile",
-    temperature=0
-)
-
+import requests
 
 # 📁 File Writer
 def write_file(project_name, file_name, content):
     os.makedirs(project_name, exist_ok=True)
 
-
     file_path = os.path.join(project_name, file_name)
-
 
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(content)
 
-
     print(f"✅ Created: {file_name}")
-
-
 
 
 # 👨‍💻 Coder Agent
 def coder_agent(plan: dict, architecture: dict):
+    api_key = os.getenv("GROQ_API_KEY")
+
+    if not api_key:
+        return {"error": "GROQ_API_KEY missing"}
+
     project_name = plan["project_name"].lower().replace(" ", "_")
     files = architecture["files"]
 
+    url = "https://api.groq.com/openai/v1/chat/completions"
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
 
     for file in files:
         print(f"⚡ Generating {file}...")
 
-
         prompt = f"""
         You are a professional software developer.
 
-
         Generate complete code for the file: {file}
-
 
         Project details:
         {plan}
 
-
         Rules:
         - Return ONLY code
         - No explanations
-        - No markdown (no ```)
-
-
+        - No markdown
         """
 
+        data = {
+            "model": "llama-3.3-70b-versatile",
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0
+        }
 
-        response = llm.invoke(prompt).content
+        try:
+            response = requests.post(url, headers=headers, json=data)
+            result = response.json()
 
+            content = result["choices"][0]["message"]["content"]
+            cleaned = content.replace("```", "").strip()
 
-        # Clean unwanted markdown if present
-        cleaned = response.replace("```", "").strip()
+            write_file(project_name, file, cleaned)
 
-
-        write_file(project_name, file, cleaned)
-
+        except Exception as e:
+            print(f"❌ Error generating {file}: {e}")
 
     return f"🎉 Project '{project_name}' created successfully!"
-
-
 
 
 # 🚀 Test
@@ -99,7 +82,6 @@ if __name__ == "__main__":
         "tech_stack": ["HTML", "CSS", "JavaScript"]
     }
 
-
     sample_architecture = {
         "files": [
             "index.html",
@@ -112,9 +94,5 @@ if __name__ == "__main__":
         ]
     }
 
-
     result = coder_agent(sample_plan, sample_architecture)
     print(result)
-
-
-
