@@ -1,30 +1,28 @@
-# from langchain_openai import ChatOpenAI
-# from langchain.chat_models import ChatOpenAI
 from langchain.chat_models import ChatOpenAI
 import os
 import json
 
+# ✅ Get API key from Streamlit Secrets
+api_key = os.getenv("GROQ_API_KEY")
 
-# 🔑 Set your Groq API key here
-os.environ["GROQ_API_KEY"] = ""
-os.environ["OPENAI_API_KEY"] = os.environ["GROQ_API_KEY"]
+if not api_key:
+    raise ValueError("GROQ_API_KEY is missing. Add it in Streamlit Secrets.")
 
-
-#  Initialize LLM (Groq)
+# ✅ Initialize LLM (Groq)
 llm = ChatOpenAI(
+    api_key=api_key,
     base_url="https://api.groq.com/openai/v1",
     model="llama-3.3-70b-versatile",
     temperature=0
 )
-#  Planner Agent
+
+# ✅ Planner Agent
 def planner_agent(task: str):
     prompt = f"""
     You are a software planning assistant.
 
-
     Return ONLY valid JSON.
     Do NOT include markdown (no ```).
-
 
     JSON format:
     {{
@@ -33,39 +31,35 @@ def planner_agent(task: str):
         "tech_stack": ["tech1", "tech2"]
     }}
 
-
     Request:
     {task}
     """
 
+    try:
+        response = llm.invoke(prompt).content
+    except Exception as e:
+        return {"error": f"LLM failed: {str(e)}"}
 
-    response = llm.invoke(prompt).content
-
-
-    #  Clean markdown if model still adds it
+    # Clean markdown if model still adds it
     cleaned = response.replace("```json", "").replace("```", "").strip()
 
-
-    #  Convert to JSON
+    # Convert to JSON
     try:
         data = json.loads(cleaned)
-    except:
-        print(" RAW RESPONSE:")
-        print(response)
-        data = {"error": "Invalid JSON output"}
-
+    except Exception:
+        return {
+            "error": "Invalid JSON output",
+            "raw_response": response
+        }
 
     return data
 
 
-#  Run test
+# ✅ Local test
 if __name__ == "__main__":
     user_input = "Build a calculator web app with add, subtract, multiply and divide"
 
-
     result = planner_agent(user_input)
 
-
-    print("\n Planner Output:")
+    print("\nPlanner Output:")
     print(json.dumps(result, indent=4))
-
