@@ -11,3 +11,9 @@ pandas
 numpy
 
 groq
+
+
+streamlit
+langchain
+openai
+tiktoken
