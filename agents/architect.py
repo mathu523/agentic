@@ -1,75 +1,61 @@
-from langchain_openai import ChatOpenAI
-from dotenv import load_dotenv
 import os
 import json
-
-
-# 🔐 Load environment variables
-load_dotenv()
-
-
-# 🔑 Get Groq API key
-api_key = os.getenv("GROQ_API_KEY")
-
-
-if not api_key:
-    raise ValueError("❌ GROQ_API_KEY not found. Please set it in .env file")
-
-
-# 🤖 Initialize LLM (Groq)
-llm = ChatOpenAI(
-    base_url="https://api.groq.com/openai/v1",
-    api_key=api_key,
-    model="llama-3.3-70b-versatile",
-    temperature=0
-)
+import requests
 
 
 # 🏗️ Architect Agent
 def architect_agent(plan: dict):
+    api_key = os.getenv("GROQ_API_KEY")
+
+    if not api_key:
+        return {"error": "GROQ_API_KEY missing"}
+
+    url = "https://api.groq.com/openai/v1/chat/completions"
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+
     prompt = f"""
     You are a software architect.
 
-
     Based on this project plan, generate a file structure.
 
-
     Return ONLY valid JSON.
-    Do NOT include markdown (no ```).
-
+    Do NOT include markdown.
 
     Format:
     {{
         "files": ["file1", "file2", "file3"]
     }}
 
-
     Plan:
     {plan}
     """
 
+    data = {
+        "model": "llama-3.3-70b-versatile",
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0
+    }
 
-    response = llm.invoke(prompt).content
-
-
-
-
-    # 🧹 Clean markdown if present
-    cleaned = response.replace("```json", "").replace("```", "").strip()
-
-
-    # 🔧 Convert to JSON
     try:
-        data = json.loads(cleaned)
-    except:
-        print("⚠️ RAW RESPONSE:")
-        print(response)
-        data = {"error": "Invalid JSON output"}
+        response = requests.post(url, headers=headers, json=data)
+        result = response.json()
 
+        content = result["choices"][0]["message"]["content"]
 
-    return data
+        # Clean markdown if present
+        cleaned = content.replace("```json", "").replace("```", "").strip()
 
+        return json.loads(cleaned)
 
+    except Exception as e:
+        return {
+            "error": str(e),
+            "raw_response": response.text if 'response' in locals() else None
+        }
 
 
 # 🚀 Test
@@ -85,9 +71,7 @@ if __name__ == "__main__":
         "tech_stack": ["HTML", "CSS", "JavaScript"]
     }
 
-
     result = architect_agent(sample_plan)
-
 
     print("\n✅ Architect Output:")
     print(json.dumps(result, indent=4))
